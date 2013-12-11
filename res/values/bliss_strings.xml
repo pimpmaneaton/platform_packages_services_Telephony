@@ -17,5 +17,10 @@
     <string name="summary_do_nothing">do nothing</string>
     <string name="summary_mute_ringer">mute the ringer</string>
     <string name="summary_dismiss_call">dismiss the call</string>
+    
+    <!-- Proximity sensor enable -->
+    <string name="proximity_mode_title">Enable proximity sensor</string>
+    <string name="proximity_on_summary">When in call, use proximity sensor to turn off screen</string>
+    <string name="proximity_off_summary">When in call, the screen will remain on</string>
 
 </resources>
