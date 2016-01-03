@@ -108,6 +108,8 @@ public class CallFeaturesSetting extends PreferenceActivity
 
     private static final String ENABLE_VIDEO_CALLING_KEY = "button_enable_video_calling";
 
+    private static final String FLIP_ACTION_KEY = "flip_action";
+
     private Phone mPhone;
     private SubscriptionInfoHelper mSubscriptionInfoHelper;
     private TelecomManager mTelecomManager;
@@ -119,6 +121,8 @@ public class CallFeaturesSetting extends PreferenceActivity
     private PreferenceScreen mVoicemailSettingsScreen;
     private SwitchPreference mEnableVideoCalling;
     private PreferenceScreen mButtonBlacklist;
+
+    private ListPreference mFlipAction;
 
     /*
      * Click Listeners, handle click based on objects attached to UI.
@@ -170,10 +174,22 @@ public class CallFeaturesSetting extends PreferenceActivity
                         .show();
                 return false;
             }
+        } else if (preference == mFlipAction) {
+            int index = mFlipAction.findIndexOfValue((String) objValue);
+            Settings.System.putInt(getContentResolver(),
+                Settings.System.CALL_FLIP_ACTION_KEY, index);
+            updateFlipActionSummary(index);
         }
 
         // Always let the preference setting proceed.
         return true;
+    }
+
+    private void updateFlipActionSummary(int value) {
+        if (mFlipAction != null) {
+            String[] summaries = getResources().getStringArray(R.array.flip_action_summary_entries);
+            mFlipAction.setSummary(getString(R.string.flip_action_summary, summaries[value]));
+        }
     }
 
     @Override
@@ -224,6 +240,8 @@ public class CallFeaturesSetting extends PreferenceActivity
         mButtonAutoRetry = (SwitchPreference) findPreference(BUTTON_RETRY_KEY);
 
         mEnableVideoCalling = (SwitchPreference) findPreference(ENABLE_VIDEO_CALLING_KEY);
+
+        mFlipAction = (ListPreference) findPreference(FLIP_ACTION_KEY);
 
         PersistableBundle carrierConfig =
                 PhoneGlobals.getInstance().getCarrierConfigForSubId(mPhone.getSubId());
@@ -334,6 +352,17 @@ public class CallFeaturesSetting extends PreferenceActivity
             wifiCallingSettings.setSummary(resId);
         }
         updateBlacklistSummary();
+
+        if (mFlipAction != null) {
+            mFlipAction.setOnPreferenceChangeListener(this);
+        }
+        if (mFlipAction != null) {
+            int flipAction = Settings.System.getInt(getContentResolver(),
+                    Settings.System.CALL_FLIP_ACTION_KEY, 2);
+            mFlipAction.setValue(String.valueOf(flipAction));
+            updateFlipActionSummary(flipAction);
+        }
+
     }
 
     public static boolean isPackageInstalled(Context context, String pkg, boolean ignoreState) {
