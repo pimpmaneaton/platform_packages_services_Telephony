@@ -53,8 +53,6 @@ public class NetworkQueryService extends Service {
     // error statuses that will be retured in the callback.
     public static final int QUERY_OK = 0;
     public static final int QUERY_EXCEPTION = 1;
-
-    static final String ACTION_LOCAL_BINDER = "com.android.phone.intent.action.LOCAL_BINDER";
     
     /** state of the query service */
     private int mState;
@@ -186,12 +184,11 @@ public class NetworkQueryService extends Service {
      */
     @Override
     public IBinder onBind(Intent intent) {
+        // TODO: Currently, return only the LocalBinder instance.  If we
+        // end up requiring support for a remote binder, we will need to 
+        // return mBinder as well, depending upon the intent.
         if (DBG) log("binding service implementation");
-        if (ACTION_LOCAL_BINDER.equals(intent.getAction())) {
-            return mLocalBinder;
-        }
-
-        return mBinder;
+        return mLocalBinder;
     }
 
     /**
