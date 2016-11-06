@@ -86,6 +86,8 @@ public class MobileNetworkSettings extends PreferenceActivity
 
     public static final String EXTRA_INITIAL_SLOT_TAB = "initial_slot_id";
 
+    protected static boolean isAPNSettingAdded = false;
+
     // Number of active Subscriptions to show tabs
     private static final int TAB_THRESHOLD = 2;
 
