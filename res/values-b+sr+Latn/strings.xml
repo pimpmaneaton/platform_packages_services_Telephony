@@ -78,7 +78,6 @@
     <string name="voicemail_settings_with_label" msgid="152724978380748296">"Glasovna pošta (<xliff:g id="SUBSCRIPTIONLABEL">%s</xliff:g>)"</string>
     <string name="voicemail_abbreviated" msgid="2215592488517217448">"VM:"</string>
     <string name="voicemail_notifications_preference_title" msgid="4019728578955102213">"Obaveštenja"</string>
-    <string name="networks" msgid="8873030692174541976">"Mrežni operateri"</string>
     <string name="cell_broadcast_settings" msgid="8740238216690502563">"Hitni prenosi"</string>
     <string name="call_settings" msgid="6112441768261754562">"Podešavanja poziva"</string>
     <string name="additional_gsm_call_settings" msgid="1391795981938800617">"Dodatna podešavanja"</string>
@@ -164,20 +163,18 @@
     <string name="label_available" msgid="1181658289009300430">"Dostupne mreže"</string>
     <string name="load_networks_progress" msgid="5230707536168902952">"Pretražuje se…"</string>
     <string name="empty_networks_list" msgid="4249426905018815316">"Nisu pronađene mreže."</string>
-    <string name="search_networks" msgid="1601136049300882441">"Pretraži mreže"</string>
     <string name="network_query_error" msgid="6828516148953325006">"Greška tokom traženja mreža."</string>
     <string name="register_on_network" msgid="9055203954040805084">"Registrovanje na <xliff:g id="NETWORK">%s</xliff:g>…"</string>
     <string name="not_allowed" msgid="5613353860205691579">"SIM kartica ne dozvoljava vezu sa ovom mrežom."</string>
     <string name="connect_later" msgid="2308119155752343975">"Trenutno nije moguće povezati se sa ovom mrežom. Probajte ponovo kasnije."</string>
     <string name="registration_done" msgid="495135664535876612">"Registrovano na mreži."</string>
-    <string name="sum_carrier_select" msgid="3494252551249882718">"Izaberite mrežnog operatera"</string>
-    <string name="sum_search_networks" msgid="2921092249873272715">"Potraži sve dostupne mreže"</string>
     <string name="select_automatically" msgid="1046727200631770962">"Automatski izaberi mrežu"</string>
     <string name="network_select_title" msgid="7733107364757544558">"Mreža"</string>
     <string name="register_automatically" msgid="6017849844573519637">"Automatska registracija..."</string>
     <string name="preferred_network_mode_title" msgid="2336624679902659306">"Željeni tip mreže"</string>
     <string name="preferred_network_mode_summary" msgid="1434820673166126609">"Promena režima rada mreže"</string>
     <string name="preferred_network_mode_dialogtitle" msgid="4048082093347807230">"Željeni tip mreže"</string>
+    <string name="forbidden_network" msgid="4384929668343563440">"(zabranjeno)"</string>
     <string name="preferred_network_mode_wcdma_perf_summary" msgid="8521677230113533809">"Željeni režim mreže: WCDMA"</string>
     <string name="preferred_network_mode_gsm_only_summary" msgid="3352445413437453511">"Željeni režim mreže: samo GSM"</string>
     <string name="preferred_network_mode_wcdma_only_summary" msgid="2836897236221063413">"Željeni režim mreže: samo WCDMA"</string>
@@ -223,14 +220,19 @@
     <string name="roaming_disable" msgid="1843417228755568110">"Povezivanje sa uslugom za podatke tokom rominga"</string>
     <string name="roaming_reenable_message" msgid="8913735676127858115">"Veza za prenos podataka je prekinuta zato što ste napustili kućnu mrežu sa isključenim prenosom podataka u romingu."</string>
     <string name="roaming_warning" msgid="1603164667540144353">"Mogu da nastanu značajni troškovi."</string>
-    <string name="roaming_alert_title" msgid="3654815360303826008">"Dozvoljavate li prenos podataka u romingu?"</string>
+    <string name="roaming_alert_title" msgid="3654815360303826008">"Dozvoljavate prenos podataka u romingu?"</string>
     <string name="data_usage_title" msgid="8759619109516889802">"Upotreba podataka"</string>
-    <string name="data_usage_template" msgid="8065650945732671045">"Potrošili ste <xliff:g id="ID_1">%1$s</xliff:g> mobilnih podataka u periodu <xliff:g id="ID_2">%2$s</xliff:g>"</string>
+    <string name="data_usage_template" msgid="8526428824844656364">"Potrošili ste <xliff:g id="ID_1">%1$s</xliff:g> mobilnih podataka u periodu <xliff:g id="ID_2">%2$s</xliff:g>"</string>
+    <string name="advanced_options_title" msgid="8074895510265488035">"Napredno"</string>
     <string name="carrier_settings_euicc" msgid="6714062862127226405">"Mobilni operater"</string>
     <string name="keywords_carrier_settings_euicc" msgid="783429609643157743">"mobilni operater, esim, sim, euicc"</string>
     <string name="carrier_settings_euicc_summary" msgid="5115001942761995457">"<xliff:g id="CARRIER_NAME">%1$s</xliff:g> – <xliff:g id="PHONE_NUMBER">%2$s</xliff:g>"</string>
-    <string name="mobile_data_settings_title" msgid="3273340917802377121">"Mobilni podaci"</string>
-    <string name="mobile_data_settings_summary" msgid="5087255915840576895">"Koristite podatke preko mobilne mreže"</string>
+    <string name="mobile_data_settings_title" msgid="4661165467914727157">"Mobilni podaci"</string>
+    <string name="mobile_data_settings_summary" msgid="5087255915840576895">"Koristi podatke preko mobilne mreže"</string>
+    <string name="data_usage_disable_mobile" msgid="3577275288809667615">"Želite li da isključite mobilne podatke?"</string>
+    <string name="sim_selection_required_pref" msgid="7049424902961844236">"Potrebno je da izaberete nešto"</string>
+    <string name="sim_change_data_title" msgid="5332425991853799280">"Da promenimo SIM za podatke?"</string>
+    <string name="sim_change_data_message" msgid="2163963581444907496">"Želite li da za mobilne podatke koristite <xliff:g id="NEW_SIM">%1$s</xliff:g> umesto <xliff:g id="OLD_SIM">%2$s</xliff:g>?"</string>
     <string name="wifi_calling_settings_title" msgid="7741961465416430470">"Pozivanje preko Wi-Fi-ja"</string>
     <string name="video_calling_settings_title" msgid="539714564273795574">"Video pozivanje preko operatera"</string>
     <string name="gsm_umts_options" msgid="6538311689850981686">"Opcije za GSM/UMTS"</string>
@@ -463,7 +465,7 @@
     <string name="incall_error_out_of_service_wfc" msgid="8741629779555132471">"Mobilna mreža nije dostupna. Povežite se na bežičnu da biste uputili poziv."</string>
     <string name="incall_error_no_phone_number_supplied" msgid="1150414018684246528">"Da biste uputili poziv, unesite važeći broj."</string>
     <string name="incall_error_call_failed" msgid="5891978320269774095">"Poziv nije uspeo."</string>
-    <string name="incall_error_cannot_add_call" msgid="5206923515522412110">"Trenutno nije moguće dodati poziv."</string>
+    <string name="incall_error_cannot_add_call" msgid="8878159278947023326">"Dodavanje poziva trenutno nije moguće. Možete da pokušate da ostvarite kontakt pomoću poruke."</string>
     <string name="incall_error_supp_service_unknown" msgid="655570339115407698">"Usluga nije podržana"</string>
     <string name="incall_error_supp_service_switch" msgid="5237002176899962862">"Zamena poziva nije uspela."</string>
     <string name="incall_error_supp_service_separate" msgid="7224393405134545246">"Razdvajanje poziva nije uspelo."</string>
@@ -585,6 +587,8 @@
     <string name="callFailed_cdma_call_limit" msgid="1556916577171457086">"Ima previše aktivnih poziva. Završite ili objedinite postojeće pozive pre nego što uputite novi."</string>
     <string name="callFailed_imei_not_accepted" msgid="132192626901238542">"Povezivanje nije uspelo, ubacite važeću SIM karticu."</string>
     <string name="callFailed_wifi_lost" msgid="5968076625137297184">"Wi-Fi veza je prekinuta. Poziv je završen."</string>
+    <string name="dialFailed_low_battery" msgid="8760548177088774268">"Ne možete da uputite poziv jer je baterija skoro prazna."</string>
+    <string name="callFailed_low_battery" msgid="4913582435905872616">"Video poziv je prekinut jer je baterija skoro prazna."</string>
     <string name="change_pin_title" msgid="7790232089699034029">"Promenite PIN kôd govorne pošte"</string>
     <string name="change_pin_continue_label" msgid="2135088662420163447">"Nastavi"</string>
     <string name="change_pin_cancel_label" msgid="353535488390948596">"Otkaži"</string>

@@ -16,26 +16,29 @@
 
 package com.android.phone.testapps.embmsmw;
 
-import android.os.RemoteException;
-import android.telephony.mbms.IStreamingServiceCallback;
 import android.telephony.mbms.StreamingService;
+import android.telephony.mbms.StreamingServiceCallback;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 // Tracks the states of the streams for a single (uid, appName, subscriptionId) tuple
 public class AppActiveStreams {
     // Wrapper for a pair (StreamingServiceCallback, streaming state)
     private static class StreamCallbackWithState {
-        private final IStreamingServiceCallback mCallback;
+        private final StreamingServiceCallback mCallback;
         private int mState;
+        private int mMethod;
+        private boolean mMethodSet = false;
 
-        public StreamCallbackWithState(IStreamingServiceCallback callback, int state) {
+        StreamCallbackWithState(StreamingServiceCallback callback, int state, int method) {
             mCallback = callback;
             mState = state;
+            mMethod = method;
         }
 
-        public IStreamingServiceCallback getCallback() {
+        public StreamingServiceCallback getCallback() {
             return mCallback;
         }
 
@@ -46,13 +49,27 @@ public class AppActiveStreams {
         public void setState(int state) {
             mState = state;
         }
+
+        public int getMethod() {
+            return mMethod;
+        }
+
+        public void setMethod(int method) {
+            mMethod = method;
+            mMethodSet = true;
+        }
+
+        public boolean isMethodSet() {
+            return mMethodSet;
+        }
     }
 
     // Stores the state and callback per service ID.
     private final Map<String, StreamCallbackWithState> mStreamStates = new HashMap<>();
-    private final StreamingAppIdentifier mAppIdentifier;
+    private final FrontendAppIdentifier mAppIdentifier;
+    private final Random mRand = new Random();
 
-    public AppActiveStreams(StreamingAppIdentifier appIdentifier) {
+    public AppActiveStreams(FrontendAppIdentifier appIdentifier) {
         mAppIdentifier = appIdentifier;
     }
 
@@ -62,32 +79,53 @@ public class AppActiveStreams {
                 StreamingService.STATE_STOPPED : callbackWithState.getState();
     }
 
-    public void startStreaming(String serviceId, IStreamingServiceCallback callback) {
-        mStreamStates.put(serviceId,
-                new StreamCallbackWithState(callback, StreamingService.STATE_STARTED));
-        try {
-            callback.streamStateChanged(StreamingService.STATE_STARTED);
-        } catch (RemoteException e) {
-            dispose(serviceId);
+    public void startStreaming(String serviceId, StreamingServiceCallback callback, int reason) {
+        if (mStreamStates.get(serviceId) != null) {
+            // error - already started
+            return;
         }
+        for (StreamCallbackWithState c : mStreamStates.values()) {
+            if (c.getCallback() == callback) {
+                // error - callback already in use
+                return;
+            }
+        }
+        mStreamStates.put(serviceId,
+                new StreamCallbackWithState(callback, StreamingService.STATE_STARTED,
+                        StreamingService.UNICAST_METHOD));
+        callback.onStreamStateUpdated(StreamingService.STATE_STARTED, reason);
+        updateStreamingMethod(serviceId);
     }
 
-    public void stopStreaming(String serviceId) {
+    public void stopStreaming(String serviceId, int reason) {
         StreamCallbackWithState entry = mStreamStates.get(serviceId);
 
         if (entry != null) {
-            try {
-                if (entry.getState() != StreamingService.STATE_STOPPED) {
-                    entry.setState(StreamingService.STATE_STOPPED);
-                    entry.getCallback().streamStateChanged(StreamingService.STATE_STOPPED);
-                }
-            } catch (RemoteException e) {
-                dispose(serviceId);
+            if (entry.getState() != StreamingService.STATE_STOPPED) {
+                entry.setState(StreamingService.STATE_STOPPED);
+                entry.getCallback().onStreamStateUpdated(StreamingService.STATE_STOPPED, reason);
             }
         }
     }
 
     public void dispose(String serviceId) {
         mStreamStates.remove(serviceId);
+    }
+
+    private void updateStreamingMethod(String serviceId) {
+        StreamCallbackWithState callbackWithState = mStreamStates.get(serviceId);
+        if (callbackWithState != null) {
+            int oldMethod = callbackWithState.getMethod();
+            int newMethod = oldMethod;
+            if (mRand.nextInt(99) < 50) {
+                newMethod = StreamingService.UNICAST_METHOD;
+            } else {
+                newMethod = StreamingService.BROADCAST_METHOD;
+            }
+            if (newMethod != oldMethod || callbackWithState.isMethodSet()) {
+                callbackWithState.setMethod(newMethod);
+                callbackWithState.getCallback().onStreamMethodUpdated(newMethod);
+            }
+        }
     }
 }

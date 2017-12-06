@@ -23,13 +23,11 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.os.RemoteException;
-import android.telephony.mbms.IMbmsStreamingManagerCallback;
-import android.telephony.mbms.IStreamingServiceCallback;
-import android.telephony.mbms.MbmsException;
+import android.telephony.mbms.MbmsErrors;
+import android.telephony.mbms.MbmsStreamingSessionCallback;
 import android.telephony.mbms.StreamingService;
+import android.telephony.mbms.StreamingServiceCallback;
 import android.telephony.mbms.StreamingServiceInfo;
-import android.telephony.mbms.vendor.IMbmsStreamingService;
 import android.telephony.mbms.vendor.MbmsStreamingServiceBase;
 import android.util.Log;
 
@@ -49,12 +47,13 @@ public class EmbmsTestStreamingService extends Service {
 
     private static final String TAG = "EmbmsTestStreaming";
 
+    private static final long INITIALIZATION_DELAY = 200;
     private static final long SEND_SERVICE_LIST_DELAY = 300;
     private static final long START_STREAMING_DELAY = 500;
 
     private static final int SEND_STREAMING_SERVICES_LIST = 1;
 
-    private final Map<StreamingAppIdentifier, IMbmsStreamingManagerCallback> mAppCallbacks =
+    private final Map<FrontendAppIdentifier, MbmsStreamingSessionCallback> mAppCallbacks =
             new HashMap<>();
 
     private HandlerThread mHandlerThread;
@@ -63,49 +62,48 @@ public class EmbmsTestStreamingService extends Service {
         switch (msg.what) {
             case SEND_STREAMING_SERVICES_LIST:
                 SomeArgs args = (SomeArgs) msg.obj;
-                StreamingAppIdentifier appKey = (StreamingAppIdentifier) args.arg1;
+                FrontendAppIdentifier appKey = (FrontendAppIdentifier) args.arg1;
                 List<StreamingServiceInfo> services = (List) args.arg2;
-                IMbmsStreamingManagerCallback appCallback = mAppCallbacks.get(appKey);
+                MbmsStreamingSessionCallback appCallback = mAppCallbacks.get(appKey);
                 if (appCallback != null) {
-                    try {
-                        appCallback.streamingServicesUpdated(services);
-                    } catch (RemoteException e) {
-                        // Assume app has gone away and clean up.
-                    }
+                    appCallback.onStreamingServicesUpdated(services);
                 }
                 break;
         }
         return true;
     };
 
-    private final IMbmsStreamingService.Stub mBinder = new MbmsStreamingServiceBase() {
+    private final MbmsStreamingServiceBase mBinder = new MbmsStreamingServiceBase() {
         @Override
-        public int initialize(IMbmsStreamingManagerCallback listener, String appName, int subId) {
-            String[] packageNames = getPackageManager().getPackagesForUid(Binder.getCallingUid());
+        public int initialize(MbmsStreamingSessionCallback callback, int subId) {
+            int packageUid = Binder.getCallingUid();
+            String[] packageNames = getPackageManager().getPackagesForUid(packageUid);
             if (packageNames == null) {
-                throw new SecurityException("No matching packages found for your UID");
+                return MbmsErrors.InitializationErrors.ERROR_APP_PERMISSIONS_NOT_GRANTED;
             }
             boolean isUidAllowed = Arrays.stream(packageNames).anyMatch(ALLOWED_PACKAGES::contains);
             if (!isUidAllowed) {
-                throw new SecurityException("No packages for your UID are allowed to use this " +
-                        "service");
+                return MbmsErrors.InitializationErrors.ERROR_APP_PERMISSIONS_NOT_GRANTED;
             }
 
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subId);
-            if (!mAppCallbacks.containsKey(appKey)) {
-                mAppCallbacks.put(appKey, listener);
-            } else {
-                return MbmsException.ERROR_ALREADY_INITIALIZED;
-            }
-            return 0;
+            mHandler.postDelayed(() -> {
+                FrontendAppIdentifier appKey = new FrontendAppIdentifier(packageUid, subId);
+                if (!mAppCallbacks.containsKey(appKey)) {
+                    mAppCallbacks.put(appKey, callback);
+                } else {
+                    callback.onError(
+                            MbmsErrors.InitializationErrors.ERROR_DUPLICATE_INITIALIZE, "");
+                    return;
+                }
+                callback.onMiddlewareReady();
+            }, INITIALIZATION_DELAY);
+            return MbmsErrors.SUCCESS;
         }
 
         @Override
-        public int getStreamingServices(String appName, int subscriptionId,
-                List<String> serviceClasses) {
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subscriptionId);
+        public int requestUpdateStreamingServices(int subscriptionId, List<String> serviceClasses) {
+            FrontendAppIdentifier appKey =
+                    new FrontendAppIdentifier(Binder.getCallingUid(), subscriptionId);
             checkInitialized(appKey);
 
             List<StreamingServiceInfo> serviceInfos =
@@ -119,32 +117,33 @@ public class EmbmsTestStreamingService extends Service {
             mHandler.sendMessageDelayed(
                     mHandler.obtainMessage(SEND_STREAMING_SERVICES_LIST, args),
                     SEND_SERVICE_LIST_DELAY);
-            return MbmsException.SUCCESS;
+            return MbmsErrors.SUCCESS;
         }
 
         @Override
-        public int startStreaming(String appName, int subscriptionId, String serviceId,
-                IStreamingServiceCallback callback) {
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subscriptionId);
+        public int startStreaming(int subscriptionId, String serviceId,
+                StreamingServiceCallback callback) {
+            FrontendAppIdentifier appKey =
+                    new FrontendAppIdentifier(Binder.getCallingUid(), subscriptionId);
             checkInitialized(appKey);
             checkServiceExists(serviceId);
 
             if (StreamStateTracker.getStreamingState(appKey, serviceId) ==
                     StreamingService.STATE_STARTED) {
-                return MbmsException.ERROR_STREAM_ALREADY_STARTED;
+                return MbmsErrors.StreamingErrors.ERROR_DUPLICATE_START_STREAM;
             }
 
             mHandler.postDelayed(
-                    () -> StreamStateTracker.startStreaming(appKey, serviceId, callback),
+                    () -> StreamStateTracker.startStreaming(appKey, serviceId, callback,
+                            StreamingService.REASON_BY_USER_REQUEST),
                     START_STREAMING_DELAY);
-            return MbmsException.SUCCESS;
+            return MbmsErrors.SUCCESS;
         }
 
         @Override
-        public Uri getPlaybackUri(String appName, int subscriptionId, String serviceId) {
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subscriptionId);
+        public Uri getPlaybackUri(int subscriptionId, String serviceId) {
+            FrontendAppIdentifier appKey =
+                    new FrontendAppIdentifier(Binder.getCallingUid(), subscriptionId);
             checkInitialized(appKey);
             checkServiceExists(serviceId);
 
@@ -156,33 +155,33 @@ public class EmbmsTestStreamingService extends Service {
         }
 
         @Override
-        public void stopStreaming(String appName, int subscriptionId, String serviceId) {
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subscriptionId);
+        public void stopStreaming(int subscriptionId, String serviceId) {
+            FrontendAppIdentifier appKey =
+                    new FrontendAppIdentifier(Binder.getCallingUid(), subscriptionId);
             checkInitialized(appKey);
             checkServiceExists(serviceId);
 
-            mHandler.post(() -> StreamStateTracker.stopStreaming(appKey, serviceId));
-        }
-
-        @Override
-        public void disposeStream(String appName, int subscriptionId, String serviceId) {
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subscriptionId);
-            checkInitialized(appKey);
-            checkServiceExists(serviceId);
-
-            Log.i(TAG, "Disposing of stream " + serviceId);
+            mHandler.post(() -> StreamStateTracker.stopStreaming(appKey, serviceId,
+                    StreamingService.REASON_BY_USER_REQUEST));
             StreamStateTracker.dispose(appKey, serviceId);
         }
 
         @Override
-        public void dispose(String appName, int subscriptionId) {
-            StreamingAppIdentifier appKey =
-                    new StreamingAppIdentifier(Binder.getCallingUid(), appName, subscriptionId);
+        public void dispose(int subscriptionId) {
+            FrontendAppIdentifier appKey =
+                    new FrontendAppIdentifier(Binder.getCallingUid(), subscriptionId);
             checkInitialized(appKey);
 
-            Log.i(TAG, "Disposing app " + appName);
+            Log.i(TAG, "Disposing app with uid " + Binder.getCallingUid());
+            StreamStateTracker.disposeAll(appKey);
+            mAppCallbacks.remove(appKey);
+        }
+
+        @Override
+        public void onAppCallbackDied(int uid, int subscriptionId) {
+            FrontendAppIdentifier appKey = new FrontendAppIdentifier(uid, subscriptionId);
+
+            Log.i(TAG, "Disposing app " + appKey + " due to binder death");
             StreamStateTracker.disposeAll(appKey);
             mAppCallbacks.remove(appKey);
         }
@@ -208,7 +207,7 @@ public class EmbmsTestStreamingService extends Service {
         Log.d(TAG, s);
     }
 
-    private void checkInitialized(StreamingAppIdentifier appKey) {
+    private void checkInitialized(FrontendAppIdentifier appKey) {
         if (!mAppCallbacks.containsKey(appKey)) {
             throw new IllegalStateException("Not yet initialized");
         }
