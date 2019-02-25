@@ -25,12 +25,17 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.VideoProfile;
@@ -60,9 +65,12 @@ import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.TelephonyCapabilities;
 import com.android.internal.telephony.sip.SipPhone;
 import com.android.phone.CallGatewayManager.RawGatewayInfo;
+import org.codeaurora.internal.IExtTelephony;
 
 import java.util.Arrays;
 import java.util.List;
+
+import org.codeaurora.internal.IExtTelephony;
 
 /**
  * Misc utilities for the Phone app.
@@ -124,6 +132,10 @@ public class PhoneUtils {
      * the dialog theme correctly.
      */
     private static final int THEME = com.android.internal.R.style.Theme_DeviceDefault_Dialog_Alert;
+    /** Extra key to identify the service class voice or video */
+    public static final String SERVICE_CLASS = "service_class";
+
+    private static final int PRIMARY_STACK_MODEM_ID = 0;
 
     private static class FgRingCalls {
         private Call fgCall;
@@ -912,6 +924,12 @@ public class PhoneUtils {
             // been assigned for the PUK unlock / SIM READY process.
             app.setPukEntryProgressDialog(pd);
 
+        } else if ((app.getPUKEntryActivity() != null) && (state == MmiCode.State.FAILED)) {
+            createUssdDialog(app, context, text,
+                    WindowManager.LayoutParams.TYPE_KEYGUARD_DIALOG);
+            // In case of failure to unlock, we'll need to reset the
+            // PUK unlock activity, so that the user may try again.
+            app.setPukEntryActivity(null);
         } else {
             // In case of failure to unlock, we'll need to reset the
             // PUK unlock activity, so that the user may try again.
@@ -922,42 +940,8 @@ public class PhoneUtils {
             // A USSD in a pending state means that it is still
             // interacting with the user.
             if (state != MmiCode.State.PENDING) {
-                log("displayMMIComplete: MMI code has finished running.");
-
-                log("displayMMIComplete: Extended NW displayMMIInitiate (" + text + ")");
-                if (text == null || text.length() == 0)
-                    return;
-
-                // displaying system alert dialog on the screen instead of
-                // using another activity to display the message.  This
-                // places the message at the forefront of the UI.
-
-                if (sUssdDialog == null) {
-                    sUssdDialog = new AlertDialog.Builder(context, THEME)
-                            .setPositiveButton(R.string.ok, null)
-                            .setCancelable(true)
-                            .setOnDismissListener(new DialogInterface.OnDismissListener() {
-                                @Override
-                                public void onDismiss(DialogInterface dialog) {
-                                    sUssdMsg.setLength(0);
-                                }
-                            })
-                            .create();
-
-                    sUssdDialog.getWindow().setType(
-                            WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
-                    sUssdDialog.getWindow().addFlags(
-                            WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-                }
-                if (sUssdMsg.length() != 0) {
-                    sUssdMsg
-                            .insert(0, "\n")
-                            .insert(0, app.getResources().getString(R.string.ussd_dialog_sep))
-                            .insert(0, "\n");
-                }
-                sUssdMsg.insert(0, text);
-                sUssdDialog.setMessage(sUssdMsg.toString());
-                sUssdDialog.show();
+                createUssdDialog(app, context, text,
+                        WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
             } else {
                 log("displayMMIComplete: USSD code has requested user input. Constructing input "
                         + "dialog.");
@@ -1069,6 +1053,46 @@ public class PhoneUtils {
                         .setTextColor(context.getResources().getColor(R.color.dialer_theme_color));
             }
         }
+    }
+
+    private static void createUssdDialog(PhoneGlobals app, Context context, CharSequence text,
+            int windowType) {
+        log("displayMMIComplete: MMI code has finished running.");
+
+        log("displayMMIComplete: Extended NW displayMMIInitiate (" + text + ")");
+        if (text == null || text.length() == 0) {
+            return;
+        }
+
+        // displaying system alert dialog on the screen instead of
+        // using another activity to display the message.  This
+        // places the message at the forefront of the UI.
+
+        if (sUssdDialog == null) {
+            sUssdDialog = new AlertDialog.Builder(context, THEME)
+                    .setPositiveButton(R.string.ok, null)
+                    .setCancelable(true)
+                    .setOnDismissListener(new DialogInterface.OnDismissListener() {
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                            sUssdMsg.setLength(0);
+                        }
+                    })
+                    .create();
+
+            sUssdDialog.getWindow().setType(windowType);
+            sUssdDialog.getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        }
+        if (sUssdMsg.length() != 0) {
+            sUssdMsg
+                    .insert(0, "\n")
+                    .insert(0, app.getResources().getString(R.string.ussd_dialog_sep))
+                    .insert(0, "\n");
+        }
+        sUssdMsg.insert(0, text);
+        sUssdDialog.setMessage(sUssdMsg.toString());
+        sUssdDialog.show();
     }
 
     /**
@@ -1746,8 +1770,7 @@ public class PhoneUtils {
         // isIdle includes checks for the DISCONNECTING/DISCONNECTED state.
         if(!fgCall.isIdle()) {
             for (Connection cn : fgCall.getConnections()) {
-                if (PhoneNumberUtils.isLocalEmergencyNumber(PhoneGlobals.getInstance(),
-                        cn.getAddress())) {
+                if (isLocalEmergencyNumber(cn.getAddress())) {
                     return true;
                 }
             }
@@ -2329,6 +2352,11 @@ public class PhoneUtils {
         return null;
     }
 
+    public static boolean isValidPhoneAccountHandle(PhoneAccountHandle phoneAccountHandle) {
+        return phoneAccountHandle != null && !TextUtils.isEmpty(phoneAccountHandle.getId())
+                && !phoneAccountHandle.getId().equals("null");
+    }
+
 
     /**
      * Determine if a given phone account corresponds to an active SIM
@@ -2381,5 +2409,134 @@ public class PhoneUtils {
         for (Phone phone : PhoneFactory.getPhones()) {
             phone.setRadioPower(enabled);
         }
+    }
+
+    /**
+     * check whether NetworkSetting apk exist in system, if yes, return true, else
+     * return false.
+     */
+    public static boolean isNetworkSettingsApkAvailable() {
+        // check whether the target handler exist in system
+        boolean isVendorNetworkSettingApkAvailable = false;
+        IExtTelephony extTelephony =
+                IExtTelephony.Stub.asInterface(ServiceManager.getService("extphone"));
+        try {
+            if (extTelephony != null &&
+                    extTelephony.isVendorApkAvailable("com.qualcomm.qti.networksetting")) {
+                isVendorNetworkSettingApkAvailable = true;
+            }
+        } catch (RemoteException ex) {
+            // could not connect to extphone service, launch the default activity
+            log("couldn't connect to extphone service, launch the default activity");
+        }
+        return isVendorNetworkSettingApkAvailable;
+    }
+
+    private static IExtTelephony getIExtTelephony() {
+        try {
+            IExtTelephony ex = IExtTelephony.Stub.asInterface(ServiceManager.getService("extphone"));
+            return ex;
+        } catch (NoClassDefFoundError ex) {
+            return null;
+        }
+    }
+
+    public static boolean isLocalEmergencyNumber(String address) {
+        IExtTelephony mIExtTelephony = getIExtTelephony();
+        if (mIExtTelephony == null) {
+            return PhoneNumberUtils.isLocalEmergencyNumber(PhoneGlobals.getInstance(), address);
+        }
+        try {
+            return mIExtTelephony.isLocalEmergencyNumber(address);
+        }catch (RemoteException ex) {
+            return PhoneNumberUtils.isLocalEmergencyNumber(PhoneGlobals.getInstance(), address);
+        }
+    }
+
+    public static boolean isPotentialLocalEmergencyNumber(String address) {
+        IExtTelephony mIExtTelephony = getIExtTelephony();
+        if (mIExtTelephony == null) {
+            return PhoneNumberUtils.isPotentialLocalEmergencyNumber(PhoneGlobals.getInstance(), address);
+        }
+        try {
+            return mIExtTelephony.isPotentialLocalEmergencyNumber(address);
+        }catch (RemoteException ex) {
+            return PhoneNumberUtils.isPotentialLocalEmergencyNumber(PhoneGlobals.getInstance(), address);
+        }
+    }
+
+    public static boolean isEmergencyNumber(String address) {
+        IExtTelephony mIExtTelephony = getIExtTelephony();
+        if (mIExtTelephony == null) {
+            return PhoneNumberUtils.isEmergencyNumber(address);
+        }
+        try {
+            return mIExtTelephony.isEmergencyNumber(address);
+        }catch (RemoteException ex) {
+            return PhoneNumberUtils.isEmergencyNumber(address);
+        }
+    }
+
+    public static boolean isDeviceInSingleStandBy() {
+        boolean result = false;
+        IExtTelephony mIExtTelephony = getIExtTelephony();
+        if (mIExtTelephony == null) {
+            return result;
+        }
+        try {
+            result = mIExtTelephony.isDeviceInSingleStandby();
+        } catch (RemoteException ex) {
+            Log.e("TelephonyConnectionService", "Exception : " + ex);
+        } catch (NullPointerException ex) {
+            Log.e("TelephonyConnectionService", "Exception : " + ex);
+        }
+        return result;
+    }
+
+    public static int getPhoneIdForECall() {
+        int phoneId = 0;
+        IExtTelephony mIExtTelephony = getIExtTelephony();
+        if (mIExtTelephony == null) {
+            return -1;
+        }
+        try {
+            phoneId = mIExtTelephony.getPhoneIdForECall();
+        } catch (RemoteException ex) {
+            Log.e("TelephonyConnectionService", "Exceptions : " + ex);
+        }
+        return phoneId;
+    }
+
+    public static int getPrimaryStackPhoneId() {
+        String modemUuId = null;
+        int primayStackPhoneId = SubscriptionManager.INVALID_PHONE_INDEX;
+
+        for (Phone phone : PhoneFactory.getPhones()) {
+            if (phone == null) continue;
+
+            Log.d(LOG_TAG, "Logical Modem id: " + phone.getModemUuId()
+                    + " phoneId: " + phone.getPhoneId());
+            modemUuId = phone.getModemUuId();
+            if ((modemUuId == null) || (modemUuId.length() <= 0) ||
+                    modemUuId.isEmpty()) {
+                continue;
+            }
+            // Select the phone id based on modemUuid
+            // if modemUuid is 0 for any phone instance, primary stack is mapped
+            // to it so return the phone id as the primary stack phone id.
+            if (Integer.parseInt(modemUuId) == PRIMARY_STACK_MODEM_ID) {
+                primayStackPhoneId = phone.getPhoneId();
+                Log.d(LOG_TAG, "Primay Stack phone id: " + primayStackPhoneId + " selected");
+                break;
+            }
+        }
+
+        // If phone id is invalid return default phone id
+        if (primayStackPhoneId == SubscriptionManager.INVALID_PHONE_INDEX) {
+            Log.d(LOG_TAG, "Returning default phone id");
+            primayStackPhoneId = 0;
+        }
+
+        return primayStackPhoneId;
     }
 }
